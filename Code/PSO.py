@@ -1,6 +1,8 @@
 import cv2
 import random
 import numpy as np
+import copy
+import math
 
 class PSO:
 
@@ -90,6 +92,18 @@ class PSO:
         :return:
         """
         pass
+
+
+
+class Particle:
+
+    def __init__(self, x: int, y: int, s: float, tau: float):
+
+        tau = 0
+        self.position = [x, y, s, tau*(math.pi/180)]
+        self.velocity = [random.uniform(-1, 1) for i in range(0, 4)]
+        self.pbest_position = copy.deepcopy(self.position)
+        self.pbest_value = 0
 
 
 
