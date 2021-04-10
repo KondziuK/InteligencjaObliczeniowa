@@ -29,7 +29,8 @@ class PSO:
         self.particles = self.init_with_random_values()
         self.iteration = 0
         self.iteration_since_gbest_update = 0
-        self.max_iter_without_gbest_update = 0
+        self.iteration_since_explosion = 0
+        self.max_iter_without_gbest_update = max_iter_without_gbest_update
         self.max_iter_before_termination = max_iter_before_termination
         self.max_iter_before_explosion = max_iter_before_explosion
 
@@ -97,6 +98,7 @@ class PSO:
 
 class Particle:
 
+
     def __init__(self, x: int, y: int, s: float, tau: float):
 
         tau = 0
@@ -104,7 +106,6 @@ class Particle:
         self.velocity = [random.uniform(-1, 1) for i in range(0, 4)]
         self.pbest_position = copy.deepcopy(self.position)
         self.pbest_value = 0
-
 
 
 
