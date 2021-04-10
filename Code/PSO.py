@@ -12,7 +12,7 @@ class PSO:
                  max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int):
 
         self.gbest_value = 0
-        self.gbest_position = 0
+        self.gbest_position = [0, 0]
         self.W = W
         self.c1 = C1
         self.c2 = C2
@@ -76,9 +76,58 @@ class PSO:
     def evaluate_fitness(self) -> None:
         """
         Calculating fitnness function and choosing best
-        :return:
+        :return: None
         """
-        pass
+        ## Updating nb of iterations
+        self.iteration += 1
+
+        for k in range(len(self.particles)):
+            particle = copy.deepcopy(self.particles[k]) ## Creating local copy of particle
+            x, y, s, tau = particle.position
+            Pinv = 0 ## ??????????????????????
+            nbits = 8
+            m, n = self.max_x, self.max_y
+            error_calc = 0
+            for i in range (0, n):
+                for j in range (0, m):
+                    ddX = j - m/2
+                    ddY = i - n/2
+                    I = int(y + s * (ddX * math.sin(-tau) + ddY * math.cos(tau)))
+                    J = int(x + s * (ddX * math.cos(-tau) + ddY * math.sin(tau)))
+
+                    ## Calculating error calc and checking if indexes works well
+                    try:
+                        error_calc += abs(self.ref_image[j, i] - self.landscape[J, I])
+                    except IndexError:
+                        error_calc += 255
+                        print(f"IndexError in iteration{self.iteration} for particle {k} for position {x}, {y}"
+                              f"for i = {i}, j = {j},"
+                              f"J = {J}, I = {I}")
+
+            err_max = (2 ** nbits) * ((m * n) - Pinv)
+
+            ## Calculating error and checking if err_max is not 0
+            try:
+                error = (err_max - error_calc) / err_max
+            except ZeroDivisionError:
+                error = 69
+                print(f"ZeroDivisionError for iteration{self.iteration} for particle {k} for position {x}, {y}")
+
+            ## Updating gbest, pbest if needed
+            if error < self.gbest_value:
+                self.gbest_value = error
+                self.gbest_position = [x, y]
+                self.iteration_since_gbest_update = 0 ## Zeroing iterations since gbest update
+
+
+            if error < particle.pbest_value:
+                particle.pbest_value = error
+                particle.pbest_position = [x, y]
+                self.particles[k] = particle ## Updating particle if sth changed
+
+
+
+
 
     def explode(self) -> None:
         """
@@ -91,10 +140,14 @@ class PSO:
         """
         Checking if termination requirements are met
         :return:
+        True if should terminate
+        False if not
         """
-        pass
-
-
+        if self.iteration >= self.max_iter_before_termination \
+                or self.iteration_since_gbest_update >= self.max_iter_without_gbest_update:
+            return True
+        else:
+            return False
 
 class Particle:
 
