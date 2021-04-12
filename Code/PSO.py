@@ -3,6 +3,7 @@ import random
 import numpy as np
 import copy
 import math
+import time
 
 class PSO:
 
@@ -131,10 +132,18 @@ class PSO:
 
     def explode(self) -> None:
         """
-        Moving particles to random position
+        Moving particles to random position # wszystkie czy wybrane?
         :return:
         """
-        pass
+        for particle in self.particles:
+
+            x = random.randint(0, self.landscape.shape[1] - self.ref_image.shape[1])
+            y = random.randint(0, self.landscape.shape[0] - self.ref_image.shape[0])
+            s = random.randrange(0, 2)
+            tau = 0 # for now
+            particle.position = [x, y, s, tau * (math.pi / 180)]
+            # velocity tez zmieniamy?
+
 
     def should_terminate(self) -> bool:
         """
@@ -161,6 +170,52 @@ class Particle:
         self.pbest_value = 0
 
 
+def main():
+    ################Parametry do zmiany####################
+    W = 1.0
+    C1 = 1.0
+    C2 = 1.0
+    nb_of_particles = 5
+    max_iter_before_explosion = 15
+    max_iter_without_gbest_update = 20
+    max_iter_before_termination = 50
+    reference_image_path = ""
+    landscape_image_path = ""
+    #######################################################
+    refImage = cv2.imread(reference_image_path, cv2.COLOR_BGR2GRAY)
+    landImage = cv2.imread(landscape_image_path, cv2.COLOR_BGR2GRAY)
+
+    pso = PSO(refImage, landImage,W, C1, C2, nb_of_particles,
+                 max_iter_before_explosion, max_iter_without_gbest_update, max_iter_before_termination)
+
+    start_time = time.time()
+
+    while not pso.should_terminate():# ??kolejność plus co gdzie powinno byc wywoływane?
+        pso.evaluate_fitness()
+        pso.update_particles_position()
+        pso.update_particles_velocity()
+
+    end_time = time.time()
+
+    #draw rectangle # TODO: dodac skalowanie prostokata
+    start_point = (int(pso.gbest_position[0]) - 30, int(pso.gbest_position[1]) - 30)
+    end_point = (int(pso.gbest_position[0]) + 30, int(pso.gbest_position[1]) + 30)
+    color = (255, 0, 0)
+    thickness = 3
+
+    cv2.rectangle(landImage, start_point, end_point, color, thickness)
+
+    cv2.imshow('landscape', landImage)
+    cv2.imshow("refImage", refImage)
+    cv2.waitKey(0)
+
+    print(f"elapsed time: {end_time - start_time} s")
+    print(f"gbest value : {pso.gbest_value}")
+
+
+
+if __name__ == "__main__":
+    main()
 
 
 
