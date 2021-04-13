@@ -13,7 +13,7 @@ class PSO:
                  max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int):
 
         self.gbest_value = 0
-        self.gbest_position = [0, 0]
+        self.gbest_position = [0, 0, 1, 0]
         self.W = W
         self.c1 = C1
         self.c2 = C2
@@ -51,24 +51,30 @@ class PSO:
         particles = []
 
         for i in range(0, self.nb_of_particles):
-            x = random.randint(self.min_x, self.max_x)
-            y = random.randint(self.min_y, self.max_y)
-            s = random.randint(self.min_s, self.max_s)
-            r = random.randint(self.min_r, self.max_r)
+            x = random.randint(int(self.min_x), int(self.max_x))
+            y = random.randint(int(self.min_y), int(self.max_y))
+            s = random.randint(int(self.min_s), int(self.max_s))
+            r = random.randint(int(self.min_r), int(self.max_r))
 
             particles.append(Particle(x, y, s, r))
 
         return particles
 
     def update_particles_velocity(self) -> None:
-        r1 = random.uniform(0, 1, 1)
-        r2 = random.uniform(0, 1, 1)
+        r1 = random.uniform(0, 1)
+        r2 = random.uniform(0, 1)
         for particle in self.particles:
-            particle.velocity = (self.W * particle.velocity) + (self.c1 * r1 * (particle.pbest_position - particle.position)) + (self.c2 * r2 * (self.gbest_position - particle.position))
+            velocity = (self.W * particle.velocity) + (self.c1 * r1 * (particle.pbest_position - particle.position)) + (self.c2 * r2 * (self.gbest_position - particle.position))
+            particle.update_velocity(velocity)
 
     def update_particles_position(self) -> None:
         for particle in self.particles:
-            particle.position = particle.position + particle.velocity
+            position = np.zeros(4)
+            position[0] = int(particle.position[0] + particle.velocity[0])
+            position[1] = int(particle.position[1] + particle.velocity[1])
+            position[2] = particle.position[2] + particle.velocity[2]
+            position[3] = particle.position[3] + particle.velocity[3]
+            particle.update_position(position)
 
     def evaluate_fitness(self) -> None:
         """
@@ -78,28 +84,28 @@ class PSO:
         ## Updating nb of iterations
         self.iteration += 1
 
-        for k in range(len(self.particles)):
-            particle = copy.deepcopy(self.particles[k]) ## Creating local copy of particle
+        for particle in self.particles:
             x, y, s, tau = particle.position
             Pinv = 0 ## ??????????????????????
             nbits = 8
-            m, n = self.max_x, self.max_y
+            m, n = self.ref_image.shape[:2]
             error_calc = 0
             for i in range (0, n):
                 for j in range (0, m):
                     ddX = j - m/2
                     ddY = i - n/2
-                    I = int(y + s * (ddX * math.sin(-tau) + ddY * math.cos(tau)))
-                    J = int(x + s * (ddX * math.cos(-tau) + ddY * math.sin(tau)))
+                    I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
+                    J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
 
                     ## Calculating error calc and checking if indexes works well
                     try:
                         error_calc += abs(self.ref_image[j, i] - self.landscape[J, I])
                     except IndexError:
                         error_calc += 255
-                        print(f"IndexError in iteration{self.iteration} for particle {k} for position {x}, {y}"
+                        print(f"IndexError in iteration{self.iteration} for position {x}, {y}"
                               f"for i = {i}, j = {j},"
-                              f"J = {J}, I = {I}")
+                              f"for I = {I}, J = {J}")
+
 
             err_max = (2 ** nbits) * ((m * n) - Pinv)
 
@@ -108,19 +114,17 @@ class PSO:
                 error = (err_max - error_calc) / err_max
             except ZeroDivisionError:
                 error = 69
-                print(f"ZeroDivisionError for iteration{self.iteration} for particle {k} for position {x}, {y}")
+                print(f"ZeroDivisionError for iteration{self.iteration}  for position {x}, {y}")
 
             ## Updating gbest, pbest if needed
             if error < self.gbest_value:
                 self.gbest_value = error
-                self.gbest_position = [x, y]
+                self.gbest_position = [x, y, s, tau * (math.pi / 180)]
                 self.iteration_since_gbest_update = 0 ## Zeroing iterations since gbest update
 
 
             if error < particle.pbest_value:
-                particle.pbest_value = error
-                particle.pbest_position = [x, y]
-                self.particles[k] = particle ## Updating particle if sth changed
+                particle.update_pbest(error, [x, y, s, tau * (math.pi / 180)])
 
 
 
@@ -137,7 +141,7 @@ class PSO:
             y = random.randint(0, self.landscape.shape[0] - self.ref_image.shape[0])
             s = random.randrange(0, 2)
             tau = 0 # for now
-            particle.position = [x, y, s, tau * (math.pi / 180)]
+            particle.position = np.array([x, y, s, tau * (math.pi / 180)])
             # velocity tez zmieniamy?
 
 
@@ -156,14 +160,26 @@ class PSO:
 
 class Particle:
 
+    # TO DO : Update_position, update_velocity, update_pbest etc
 
     def __init__(self, x: int, y: int, s: float, tau: float):
 
         tau = 0
-        self.position = [x, y, s, tau*(math.pi/180)]
-        self.velocity = [random.uniform(-1, 1) for i in range(0, 4)]
+        self.position = np.array([x, y, s, tau*(math.pi/180)])
+        self.velocity = np.array([random.uniform(-1, 1) for i in range(0, 4)])
         self.pbest_position = copy.deepcopy(self.position)
         self.pbest_value = 0
+
+    def update_position(self, position: np.array):
+        self.position = position
+
+
+    def update_velocity(self, velocity):
+        self.velocity = velocity
+
+    def update_pbest(self,pbest_value, pbest_position):
+        self.pbest_position = pbest_position
+        self.pbest_value = pbest_value
 
 
 def main():
@@ -175,11 +191,13 @@ def main():
     max_iter_before_explosion = 15
     max_iter_without_gbest_update = 20
     max_iter_before_termination = 50
-    reference_image_path = ""
-    landscape_image_path = ""
+    reference_image_path = "pattern.jpg"
+    landscape_image_path = "druzyna_AGH_01.jpg"
     #######################################################
-    refImage = cv2.imread(reference_image_path, cv2.COLOR_BGR2GRAY)
-    landImage = cv2.imread(landscape_image_path, cv2.COLOR_BGR2GRAY)
+    refImage = cv2.imread(reference_image_path,0)
+    landImage = cv2.imread(landscape_image_path,0)
+    print(f"refImage size is {refImage.shape}")
+    print(f"LandImage size is {landImage.shape}")
 
     pso = PSO(refImage, landImage,W, C1, C2, nb_of_particles,
                  max_iter_before_explosion, max_iter_without_gbest_update, max_iter_before_termination)
