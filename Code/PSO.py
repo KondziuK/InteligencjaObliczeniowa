@@ -61,18 +61,14 @@ class PSO:
         return particles
 
     def update_particles_velocity(self) -> None:
-        """
-        Updating particles velocity
-        :return:
-        """
-        pass
+        r1 = random.uniform(0, 1, 1)
+        r2 = random.uniform(0, 1, 1)
+        for particle in self.particles:
+            particle.velocity = (self.W * particle.velocity) + (self.c1 * r1 * (particle.pbest_position - particle.position)) + (self.c2 * r2 * (self.gbest_position - particle.position))
 
     def update_particles_position(self) -> None:
-        """
-        Updating particles position
-        :return:
-        """
-        pass
+        for particle in self.particles:
+            particle.position = particle.position + particle.velocity
 
     def evaluate_fitness(self) -> None:
         """
@@ -192,8 +188,8 @@ def main():
 
     while not pso.should_terminate():# ??kolejność plus co gdzie powinno byc wywoływane?
         pso.evaluate_fitness()
-        pso.update_particles_position()
         pso.update_particles_velocity()
+        pso.update_particles_position()
 
     end_time = time.time()
 
