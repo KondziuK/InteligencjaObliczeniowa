@@ -22,8 +22,10 @@ class PSO:
         self.ref_image = ref_image
         self.landscape = landscape
         self.nb_of_channels = ref_image.shape[-1]
-        self.max_y, self.max_x = landscape.shape[:2]
-        self.min_x, self.min_y = [0,0]
+        self.max_y = int(landscape.shape[0] - (ref_image.shape[0]/2) - 1)
+        self.max_x = int(landscape.shape[1] - (ref_image.shape[1]/2) - 1)
+        self.min_x = int((ref_image.shape[1]/2)+1)
+        self.min_y = int((ref_image.shape[0]/2)+1)
         self.particles = self.init_with_random_values()
         self.iteration = 0
         self.iteration_since_gbest_update = 0
@@ -46,14 +48,9 @@ class PSO:
         :return: List of particles
         """
         particles = []
-        min_x = int(self.min_x + (self.ref_image.shape[1]/2)+1)
-        min_y = int(self.min_y + (self.ref_image.shape[0]/2)+1)
-        max_x = int(self.max_x - (self.ref_image.shape[1]/2)-1)
-        max_y = int(self.max_y - (self.ref_image.shape[0]/2)-1)
-        print(min_x, min_y, max_x, max_y)
         for i in range(0, self.nb_of_particles):
-            x = random.randint(int(min_x), int(max_x))
-            y = random.randint(int(min_y), int(max_y))
+            x = random.randint(self.min_x, self.max_x)
+            y = random.randint(self.min_y, self.max_y)
             particles.append(Particle(x, y))
         return particles
 
@@ -65,20 +62,16 @@ class PSO:
             particle.update_velocity(velocity)
 
     def update_particles_position(self) -> None:
-        min_x = int(self.min_x + (self.ref_image.shape[1]/2)+1)
-        min_y = int(self.min_y + (self.ref_image.shape[0]/2)+1)
-        max_x = int(self.max_x - (self.ref_image.shape[1]/2)-1)
-        max_y = int(self.max_y - (self.ref_image.shape[0]/2)-1)
         for particle in self.particles:
             position = np.zeros(2)
-            if min_x < int(particle.position[0] + particle.velocity[0]) < max_x:
+            if self.min_x < int(particle.position[0] + particle.velocity[0]) < self.max_x:
                 position[0] = int(particle.position[0] + particle.velocity[0])
             else:
-                position[0] = random.randint(int(min_x), int(max_x))
-            if min_y < int(particle.position[1] + particle.velocity[1]) < max_y:
+                position[0] = random.randint(self.min_x, self.max_x)
+            if self.min_y < int(particle.position[1] + particle.velocity[1]) < self.max_y:
                 position[1] = int(particle.position[1] + particle.velocity[1])
             else:
-                position[1] = random.randint(int(min_y), int(max_y))
+                position[1] = random.randint(self.min_y, self.max_y)
 
             particle.update_position(position)
 
@@ -89,10 +82,11 @@ class PSO:
         """
         ## Updating nb of iterations
         self.iteration += 1
+        was_update = False
 
         for particle in self.particles:
             x, y = particle.position
-            Pinv = 0 ## ??????????????????????
+            Pinv = 0
             nbits = 8
             n, m = self.ref_image.shape[:2]
             error_calc = 0
@@ -128,11 +122,15 @@ class PSO:
                 self.gbest_value = error
                 self.gbest_position = [x, y]
                 self.iteration_since_gbest_update = 0 ## Zeroing iterations since gbest update
-            else:
-                self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
+                self.iteration_since_explosion = 0
+                was_update = True
 
             if error < particle.pbest_value:
                 particle.update_pbest(error, [x, y])
+
+        if not was_update:
+            self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
+            self.iteration_since_explosion = self.iteration_since_explosion + 1
 
 
     def explode(self) -> None:
@@ -142,12 +140,8 @@ class PSO:
         """
         for particle in self.particles:
             position = np.zeros(2)
-            min_x = int(self.min_x + (self.ref_image.shape[1]/2) + 1)
-            min_y = int(self.min_y + (self.ref_image.shape[0]/2) + 1)
-            max_x = int(self.max_x - (self.ref_image.shape[1]/2) - 1)
-            max_y = int(self.max_y - (self.ref_image.shape[0]/2) - 1)
-            position[0] = random.randint(int(min_x), int(max_x))
-            position[1] = random.randint(int(min_y), int(max_y))
+            position[0] = random.randint(self.min_x, self.max_x)
+            position[1] = random.randint(self.min_y, self.max_y)
             particle.update_position(position)
             particle.update_pbest(0, [0, 0])
         print("EXPLODE")
@@ -161,19 +155,15 @@ class PSO:
         False if not
         """
         if self.iteration >= self.max_iter_before_termination:
-            print("MAX ITER REACHED, ACHIEVED")
+            print("MAX ITER REACHED")
             return True
-        # TODO: Konniec jak za długo nie zmienia się gbest
-        elif self.iteration_since_gbest_update >= self.max_iter_before_explosion:
-            self.explode()
-            self.iteration_since_gbest_update = 0 # potem to wywalić
-            return False
+        elif self.iteration_since_gbest_update >= self.max_iter_without_gbest_update:
+            print("MAX ITER WITHOUT GBEST UPDATE REACHED")
+            return True
         else:
             return False
 
 class Particle:
-
-    # TO DO : Update_position, update_velocity, update_pbest etc
 
     def __init__(self, x: int, y: int):
 
@@ -201,12 +191,13 @@ def main():
     C1 = 2
     C2 = 2
     nb_of_particles = 20
-    max_iter_before_explosion = 10*nb_of_particles
+    max_iter_before_explosion = 9
     max_iter_without_gbest_update = 20
     max_iter_before_termination = 50
     reference_image_path = "shapes_pat.png"
     landscape_image_path = "shapes.jpg"
     #######################################################
+
     refImage = cv2.imread(reference_image_path,0)
     landImage = cv2.imread(landscape_image_path,0)
     print(f"refImage size is {refImage.shape}")
@@ -218,7 +209,7 @@ def main():
     start_time = time.time()
     count = 0
     show_me = landImage.copy()
-    while not pso.should_terminate():# ??kolejność plus co gdzie powinno byc wywoływane?
+    while not pso.should_terminate():
         for particle in pso.particles:
             cv2.circle(show_me, (int(particle.position[0]), int(particle.position[1])), radius=0, color=(0, 0, 0), thickness=6)
         # cv2.imshow("Image", show_me)
@@ -227,7 +218,10 @@ def main():
         pso.update_particles_velocity()
         pso.update_particles_position()
         count = count + 1
-        print(count)
+        if pso.iteration_since_explosion > pso.max_iter_before_explosion:
+            pso.iteration_since_explosion = 0
+            pso.explode()
+        print("Iteration nr " + str(count) + ", since gbest_update: " + str(pso.iteration_since_gbest_update) + ", since explode: " + str(pso.iteration_since_explosion))
 
     end_time = time.time()
 
