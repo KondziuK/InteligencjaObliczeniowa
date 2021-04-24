@@ -133,6 +133,53 @@ class PSO:
             self.iteration_since_explosion = self.iteration_since_explosion + 1
 
 
+    def evaluate_fitness2(self) -> None:
+
+        ## Updating nb of iterations
+        self.iteration += 1
+        was_update = False
+        for particle in self.particles:
+            x, y = particle.position
+            n, m = self.ref_image.shape[:2]
+            landcape_sample = copy.deepcopy(self.ref_image)
+
+            for i in range(0, n):
+                for j in range(0, m):
+
+                    I = int(y + i - n / 2)
+                    J = int(x + j - m / 2)
+                    try:
+                        landcape_sample[i, j] = self.landscape[I, J]
+                    except IndexError:
+                        landcape_sample[i, j] = 400
+
+            hgram, x_edges, y_edges = np.histogram2d(
+                landcape_sample.ravel(),
+                self.ref_image.ravel(),
+                bins=20)
+
+            pxy = hgram / float(np.sum(hgram))
+            px = np.sum(pxy, axis=1)  # marginal for x over y
+            py = np.sum(pxy, axis=0)  # marginal for y over x
+            px_py = px[:, None] * py[None, :]  # Broadcast to multiply marginals
+            # Now we can do the calculation using the pxy, px_py 2D arrays
+            nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
+            result = np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
+            ## Updating gbest, pbest if needed
+            if result < self.gbest_value:
+                self.gbest_value = result
+                self.gbest_position = [x, y]
+                self.iteration_since_gbest_update = 0  ## Zeroing iterations since gbest update
+                self.iteration_since_explosion = 0
+                was_update = True
+
+            if result < particle.pbest_value:
+                particle.update_pbest(result, [x, y])
+
+        if not was_update:
+            self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
+            self.iteration_since_explosion = self.iteration_since_explosion + 1
+
     def explode(self) -> None:
         """
         Moving particles to random position # wszystkie czy wybrane?
@@ -241,11 +288,61 @@ def main():
 
     cv2.waitKey()
 
+
+
+def click_event(event, x, y, flags, params):
+    # checking for left mouse clicks
+    if event == cv2.EVENT_LBUTTONDOWN:
+
+        reference_image_path = "shapes_pat.png"
+        landscape_image_path = "shapes.jpg"
+        ref_image = cv2.imread(reference_image_path, 0)
+        land_image = cv2.imread(landscape_image_path, 0)
+        print(f"check for x = {x} , y = {y}")
+        Pinv = 0
+        nbits = 8
+        n, m = ref_image.shape[:2]
+        error_calc = 0
+        for i in range(0, n):
+            for j in range(0, m):
+                # ddX = j - m/2
+                # ddY = i - n/2
+                # I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
+                # J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
+                I = int(y + i - n / 2)
+                J = int(x + j - m / 2)
+                ## Calculating error calc and checking if indexes works well
+                try:
+                    error_calc += abs(ref_image[i, j] - land_image[I, J])
+                except IndexError:
+                    error_calc += 255
+
+
+        err_max = (2 ** nbits) * ((m * n) - Pinv)
+
+        ## Calculating error and checking if err_max is not 0
+        try:
+            error = (err_max - error_calc) / err_max
+        except ZeroDivisionError:
+            error = 69
+            print(f"ZeroDivisionError")
+        print(f"ERROR = {error}")
+
+
+def check_function():
+    ################Parametry do zmiany####################
+    reference_image_path = "shapes_pat.png"
+    landscape_image_path = "shapes.jpg"
+    #######################################################
+
+    landImage = cv2.imread(landscape_image_path, 0)
+    cv2.imshow('image', landImage)
+
+    cv2.setMouseCallback('image', click_event)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
 if __name__ == "__main__":
     main()
-
-
-
-
-
+    #check_function()
 
