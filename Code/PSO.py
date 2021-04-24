@@ -13,7 +13,7 @@ class PSO:
                  nb_of_particles: int,
                  max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int):
 
-        self.gbest_value = 1000000
+        self.gbest_value = 0
         self.gbest_position = [0, 0]
         self.W = W
         self.c1 = C1
@@ -118,14 +118,14 @@ class PSO:
                 print(f"ZeroDivisionError for iteration{self.iteration}  for position {x}, {y}")
 
             ## Updating gbest, pbest if needed
-            if error < self.gbest_value:
+            if error > self.gbest_value:
                 self.gbest_value = error
                 self.gbest_position = [x, y]
                 self.iteration_since_gbest_update = 0 ## Zeroing iterations since gbest update
                 self.iteration_since_explosion = 0
                 was_update = True
 
-            if error < particle.pbest_value:
+            if error > particle.pbest_value:
                 particle.update_pbest(error, [x, y])
 
         if not was_update:
@@ -166,14 +166,14 @@ class PSO:
             nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
             result = np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
             ## Updating gbest, pbest if needed
-            if result < self.gbest_value:
+            if result > self.gbest_value:
                 self.gbest_value = result
                 self.gbest_position = [x, y]
                 self.iteration_since_gbest_update = 0  ## Zeroing iterations since gbest update
                 self.iteration_since_explosion = 0
                 was_update = True
 
-            if result < particle.pbest_value:
+            if result > particle.pbest_value:
                 particle.update_pbest(result, [x, y])
 
         if not was_update:
@@ -241,8 +241,8 @@ def main():
     max_iter_before_explosion = 9
     max_iter_without_gbest_update = 20
     max_iter_before_termination = 50
-    reference_image_path = "shapes_pat.png"
-    landscape_image_path = "shapes.jpg"
+    reference_image_path = "pattern.jpg"
+    landscape_image_path = "druzyna_AGH_01.jpg"
     #######################################################
 
     refImage = cv2.imread(reference_image_path,0)
@@ -261,7 +261,7 @@ def main():
             cv2.circle(show_me, (int(particle.position[0]), int(particle.position[1])), radius=0, color=(0, 0, 0), thickness=6)
         # cv2.imshow("Image", show_me)
         # cv2.waitKey()
-        pso.evaluate_fitness()
+        pso.evaluate_fitness2()
         pso.update_particles_velocity()
         pso.update_particles_position()
         count = count + 1
