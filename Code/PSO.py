@@ -90,16 +90,28 @@ class PSO:
             nbits = 8
             n, m = self.ref_image.shape[:2]
             error_calc = 0
+
+            if n % 2 == 0:
+                ddN = n/2
+            else:
+                ddN = (n-1)/2
+            if m % 2 == 0:
+                ddM = m/2
+            else:
+                ddM = (m-1)/2
+
             for i in range(0,n):
                 for j in range(0,m):
+                    s =1
                     # ddX = j - m/2
                     # ddY = i - n/2
                     # I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
                     # J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
-                    I = int(y + i - n/2)
-                    J = int(x + j - m/2)
+                    I = int(y + i - ddN)
+                    J = int(x + j - ddM)
                     ## Calculating error calc and checking if indexes works well
                     try:
+                        # for k in range(0,3):
                         error_calc += abs(self.ref_image[i, j] - self.landscape[I, J])
                     except IndexError:
                         error_calc += 255
@@ -146,25 +158,27 @@ class PSO:
             for i in range(0, n):
                 for j in range(0, m):
 
-                    I = int(y + i - n / 2)
-                    J = int(x + j - m / 2)
+                    I = int(y + i - n/2)
+                    J = int(x + j - m/2)
                     try:
-                        landcape_sample[i, j] = self.landscape[I, J]
+                        landcape_sample[i, j, :] = self.landscape[I, J, :]
                     except IndexError:
-                        landcape_sample[i, j] = 400
+                        # landcape_sample[i, j, :] = [400, 400, 400]
+                        sys.exit(7)
+            result = 0
+            for k in range(0, 3):
+                hgram, x_edges, y_edges = np.histogram2d(
+                    landcape_sample[:,:,k].ravel(),
+                    self.ref_image[:,:,k].ravel(),
+                    bins=20)
 
-            hgram, x_edges, y_edges = np.histogram2d(
-                landcape_sample.ravel(),
-                self.ref_image.ravel(),
-                bins=20)
-
-            pxy = hgram / float(np.sum(hgram))
-            px = np.sum(pxy, axis=1)  # marginal for x over y
-            py = np.sum(pxy, axis=0)  # marginal for y over x
-            px_py = px[:, None] * py[None, :]  # Broadcast to multiply marginals
-            # Now we can do the calculation using the pxy, px_py 2D arrays
-            nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
-            result = np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
+                pxy = hgram / float(np.sum(hgram))
+                px = np.sum(pxy, axis=1)  # marginal for x over y
+                py = np.sum(pxy, axis=0)  # marginal for y over x
+                px_py = px[:, None] * py[None, :]  # Broadcast to multiply marginals
+                # Now we can do the calculation using the pxy, px_py 2D arrays
+                nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
+                result += np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
             ## Updating gbest, pbest if needed
             if result > self.gbest_value:
                 self.gbest_value = result
@@ -218,7 +232,7 @@ class Particle:
         self.position = np.array([x, y])
         self.velocity = np.array([random.uniform(-0.1, 0.1) for i in range(0, 2)])
         self.pbest_position = copy.deepcopy(self.position)
-        self.pbest_value = 1000000
+        self.pbest_value = 0
 
     def update_position(self, position: np.array):
         self.position = position
@@ -245,8 +259,8 @@ def main():
     landscape_image_path = "druzyna_AGH_01.jpg"
     #######################################################
 
-    refImage = cv2.imread(reference_image_path,0)
-    landImage = cv2.imread(landscape_image_path,0)
+    refImage = cv2.imread(reference_image_path)
+    landImage = cv2.imread(landscape_image_path)
     print(f"refImage size is {refImage.shape}")
     print(f"LandImage size is {landImage.shape}")
 
@@ -278,6 +292,12 @@ def main():
     thickness = 3
 
     cv2.rectangle(show_me, start_point, end_point, color, thickness)
+    #
+    # n,m = refImage.shape
+    # cv2.rectangle(show_me, (int(pso.gbest_position[0]) - 5, int(pso.gbest_position[1]) - 5),
+    #               (int(pso.gbest_position[0] + refImage.shape[1]) + 5,
+    #                int(pso.gbest_position[1] +  refImage.shape[0]) + 5),
+    #               (0, 0, 0), 3)
 
     cv2.imshow('landscape', show_me)
     cv2.imshow("refImage", refImage)
@@ -294,10 +314,10 @@ def click_event(event, x, y, flags, params):
     # checking for left mouse clicks
     if event == cv2.EVENT_LBUTTONDOWN:
 
-        reference_image_path = "shapes_pat.png"
-        landscape_image_path = "shapes.jpg"
-        ref_image = cv2.imread(reference_image_path, 0)
-        land_image = cv2.imread(landscape_image_path, 0)
+        reference_image_path = "patt"
+        landscape_image_path = "druzyna_AGH_01.jpg"
+        ref_image = cv2.imread(reference_image_path)
+        land_image = cv2.imread(landscape_image_path)
         print(f"check for x = {x} , y = {y}")
         Pinv = 0
         nbits = 8
