@@ -253,10 +253,10 @@ def main():
     C2 = 2
     nb_of_particles = 20
     max_iter_before_explosion = 9
-    max_iter_without_gbest_update = 20
-    max_iter_before_termination = 50
-    reference_image_path = "pattern.jpg"
-    landscape_image_path = "druzyna_AGH_01.jpg"
+    max_iter_without_gbest_update = 50
+    max_iter_before_termination = 300
+    reference_image_path = "Wally_ref.jpg"
+    landscape_image_path = "Wally_landscape.jpeg"
     #######################################################
 
     refImage = cv2.imread(reference_image_path)
