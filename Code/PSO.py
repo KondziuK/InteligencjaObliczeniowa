@@ -5,6 +5,9 @@ import copy
 import math
 import sys
 import time
+#from hausdorff import hausdorff_distance
+from scipy.spatial.distance import directed_hausdorff
+
 
 class PSO:
 
@@ -13,7 +16,10 @@ class PSO:
                  nb_of_particles: int,
                  max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int, RGB: bool = False,choosen_function: int = 1 ):
 
-        self.gbest_value = 0
+        if choosen_function == 3:
+            self.gbest_value = 1000000000000
+        else:
+            self.gbest_value = 0
         self.gbest_position = [0, 0]
         self.W = W
         self.c1 = C1
@@ -210,11 +216,65 @@ class PSO:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
             self.iteration_since_explosion = self.iteration_since_explosion + 1
 
+
+
+    def evaluate_fitness_hausdorf(self) -> None:
+
+        ## Updating nb of iterations
+        self.iteration += 1
+        was_update = False
+        for particle in self.particles:
+            x, y = particle.position
+            n, m = self.ref_image.shape[:2]
+            landcape_sample = copy.deepcopy(self.ref_image)
+
+            for i in range(0, n):
+                for j in range(0, m):
+
+                    I = int(y + i - n/2)
+                    J = int(x + j - m/2)
+                    try:
+                        if self.RGB:
+                            landcape_sample[i, j, :] = self.landscape[I, J, :]
+                        else:
+                            landcape_sample[i, j] = self.landscape[I, J]
+                    except IndexError:
+                        sys.exit(7)
+            result = 0
+
+            if self.RGB:
+                for k in range(0, 3):
+
+                    # result += hausdorff_distance(landcape_sample[:, :, k], self.ref_image[:, :, k])
+
+                    result += max(directed_hausdorff(landcape_sample[:, :, k], self.ref_image[:, :, k])[0], directed_hausdorff(self.ref_image[:, :, k], landcape_sample[:, :, k])[0])
+            else:
+                result =max(directed_hausdorff(landcape_sample[:, :, k], self.ref_image[:, :, k])[0], directed_hausdorff(self.ref_image[:, :, k], landcape_sample[:, :, k])[0])
+                # result = hausdorff_distance(landcape_sample, self.ref_image)
+
+            ## Updating gbest, pbest if needed
+            if result < self.gbest_value:
+                self.gbest_value = result
+                self.gbest_position = [x, y]
+                self.iteration_since_gbest_update = 0  ## Zeroing iterations since gbest update
+                self.iteration_since_explosion = 0
+                was_update = True
+
+            if result < particle.pbest_value:
+                particle.update_pbest(result, [x, y])
+
+        if not was_update:
+            self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
+            self.iteration_since_explosion = self.iteration_since_explosion + 1
+
+
     def evaluate(self):
         if self.choosen_function == 1:
             self.evaluate_fitness1()
         elif self.choosen_function == 2:
             self.evaluate_fitness2()
+        elif self.choosen_function == 3:
+            self.evaluate_fitness_hausdorf()
         else:
             pass
 
@@ -269,55 +329,61 @@ class Particle:
         self.pbest_position = pbest_position
         self.pbest_value = pbest_value
 
-    def click_event(event, x, y, flags, params):
-        # checking for left mouse clicks
-        if event == cv2.EVENT_LBUTTONDOWN:
 
-            reference_image_path = "patt"
-            landscape_image_path = "druzyna_AGH_01.jpg"
-            ref_image = cv2.imread(reference_image_path)
-            land_image = cv2.imread(landscape_image_path)
-            print(f"check for x = {x} , y = {y}")
-            Pinv = 0
-            nbits = 8
-            n, m = ref_image.shape[:2]
-            error_calc = 0
-            for i in range(0, n):
-                for j in range(0, m):
-                    # ddX = j - m/2
-                    # ddY = i - n/2
-                    # I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
-                    # J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
-                    I = int(y + i - n / 2)
-                    J = int(x + j - m / 2)
-                    ## Calculating error calc and checking if indexes works well
-                    try:
-                        error_calc += abs(ref_image[i, j] - land_image[I, J])
-                    except IndexError:
-                        error_calc += 255
 
-            err_max = (2 ** nbits) * ((m * n) - Pinv)
 
-            ## Calculating error and checking if err_max is not 0
-            try:
-                error = (err_max - error_calc) / err_max
-            except ZeroDivisionError:
-                error = 69
-                print(f"ZeroDivisionError")
-            print(f"ERROR = {error}")
+def click_event(event, x, y, flags, params):
+    # checking for left mouse clicks
+    if event == cv2.EVENT_LBUTTONDOWN:
 
-    def check_function():
-        ################Parametry do zmiany####################
         reference_image_path = "shapes_pat.png"
         landscape_image_path = "shapes.jpg"
-        #######################################################
+        ref_image = cv2.imread(reference_image_path,0)
+        landscape_image = cv2.imread(landscape_image_path,0)
+        print(f"check for x = {x} , y = {y}")
+        landcape_sample = copy.deepcopy(ref_image)
+        n, m = ref_image.shape[:2]
 
-        landImage = cv2.imread(landscape_image_path, 0)
-        cv2.imshow('image', landImage)
+        RGB = False
+        for i in range(0, n):
+            for j in range(0, m):
 
-        cv2.setMouseCallback('image', click_event)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+                I = int(y + i - n / 2)
+                J = int(x + j - m / 2)
+                try:
+                    if RGB:
+                        landcape_sample[i, j, :] = landscape_image[I, J, :]
+                    else:
+                        landcape_sample[i, j] = landscape_image[I, J]
+                except IndexError:
+                    sys.exit(7)
+        result = 0
+
+        if RGB:
+            for k in range(0, 3):
+                # result += hausdorff_distance(landcape_sample[:, :, k], self.ref_image[:, :, k])
+
+                result += max(directed_hausdorff(landcape_sample[:, :, k], ref_image[:, :, k])[0],
+                              directed_hausdorff(ref_image[:, :, k], landcape_sample[:, :, k])[0])
+        else:
+            result = max(directed_hausdorff(landcape_sample, ref_image)[0],
+                         directed_hausdorff(ref_image, landcape_sample)[0])
+            # result = hausdorff_distance(landcape_sample, self.ref_image)
+
+        print(f"RESULT = {result}")
+
+def check_function():
+    ################Parametry do zmiany####################
+    reference_image_path = "Wally_ref.jpg"
+    landscape_image_path = "Wally_landscape.jpeg"
+    #######################################################
+
+    landImage = cv2.imread(landscape_image_path, 0)
+    cv2.imshow('image', landImage)
+
+    cv2.setMouseCallback('image', click_event)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 def main():
@@ -327,14 +393,15 @@ def main():
     C2 = 2
     nb_of_particles = 20
     max_iter_before_explosion = 9
-    max_iter_without_gbest_update = 50
+    max_iter_without_gbest_update = 100
     max_iter_before_termination = 300
     reference_image_path = "Wally_ref.jpg"
     landscape_image_path = "Wally_landscape.jpeg"
     RGB = True
-    choosen_function = 2
+    choosen_function = 3
     # 1 - Count difference measure
     # 2 - Mutual information measure
+    # 3 - Hausdorff distance
     #######################################################
 
     refImage = cv2.imread(reference_image_path)
