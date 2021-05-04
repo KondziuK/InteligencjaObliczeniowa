@@ -11,7 +11,7 @@ class PSO:
     def __init__(self, ref_image: np.array,landscape: np.array,
                  W: float, C1 :float, C2: float,
                  nb_of_particles: int,
-                 max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int):
+                 max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int, RGB: bool = False,choosen_function: int = 1 ):
 
         self.gbest_value = 0
         self.gbest_position = [0, 0]
@@ -19,8 +19,8 @@ class PSO:
         self.c1 = C1
         self.c2 = C2
         self.nb_of_particles = nb_of_particles
-        self.ref_image = ref_image
-        self.landscape = landscape
+        self.ref_image = ref_image if RGB else cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
+        self.landscape = landscape if RGB else cv2.cvtColor(landscape, cv2.COLOR_BGR2GRAY)
         self.nb_of_channels = ref_image.shape[-1]
         self.max_y = int(landscape.shape[0] - (ref_image.shape[0]/2) - 1)
         self.max_x = int(landscape.shape[1] - (ref_image.shape[1]/2) - 1)
@@ -33,6 +33,9 @@ class PSO:
         self.max_iter_without_gbest_update = max_iter_without_gbest_update
         self.max_iter_before_termination = max_iter_before_termination
         self.max_iter_before_explosion = max_iter_before_explosion
+
+        self.choosen_function = choosen_function
+        self.RGB = RGB
 
     def __call__(self) -> None:
         """
@@ -75,7 +78,7 @@ class PSO:
 
             particle.update_position(position)
 
-    def evaluate_fitness(self) -> None:
+    def evaluate_fitness1(self) -> None:
         """
         Calculating fitnness function and choosing best
         :return: None
@@ -111,10 +114,12 @@ class PSO:
                     J = int(x + j - ddM)
                     ## Calculating error calc and checking if indexes works well
                     try:
-                        # for k in range(0,3):
-                        error_calc += abs(self.ref_image[i, j] - self.landscape[I, J])
+                        if self.RGB:
+                            for k in range(0,3):
+                                error_calc += abs(self.ref_image[i, j, k] - self.landscape[I, J, k])
+                        else:
+                            error_calc = abs(self.ref_image[i, j] - self.landscape[I, J])
                     except IndexError:
-                        error_calc += 255
                         print(f"IndexError in iteration{self.iteration} for position {x}, {y}"
                                f"for i = {j}, j = {i},"
                                f"for I = {J}, J = {I}")
@@ -124,7 +129,10 @@ class PSO:
 
             ## Calculating error and checking if err_max is not 0
             try:
-                error = (err_max - error_calc) / err_max
+                if self. RGB:
+                     error = (3* err_max - error_calc) / err_max
+                else:
+                    error = (err_max - error_calc) / err_max
             except ZeroDivisionError:
                 error = 69
                 print(f"ZeroDivisionError for iteration{self.iteration}  for position {x}, {y}")
@@ -144,7 +152,6 @@ class PSO:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
             self.iteration_since_explosion = self.iteration_since_explosion + 1
 
-
     def evaluate_fitness2(self) -> None:
 
         ## Updating nb of iterations
@@ -161,24 +168,33 @@ class PSO:
                     I = int(y + i - n/2)
                     J = int(x + j - m/2)
                     try:
-                        landcape_sample[i, j, :] = self.landscape[I, J, :]
+                        if self.RGB:
+                            landcape_sample[i, j, :] = self.landscape[I, J, :]
+                        else:
+                            landcape_sample[i, j] = self.landscape[I, J]
                     except IndexError:
-                        # landcape_sample[i, j, :] = [400, 400, 400]
                         sys.exit(7)
             result = 0
-            for k in range(0, 3):
-                hgram, x_edges, y_edges = np.histogram2d(
-                    landcape_sample[:,:,k].ravel(),
-                    self.ref_image[:,:,k].ravel(),
-                    bins=20)
 
+            if self.RGB:
+                for k in range(0, 3):
+                    hgram, x_edges, y_edges = np.histogram2d( landcape_sample[:,:,k].ravel(),self.ref_image[:,:,k].ravel(),bins=20)
+                    pxy = hgram / float(np.sum(hgram))
+                    px = np.sum(pxy, axis=1)  # marginal for x over y
+                    py = np.sum(pxy, axis=0)  # marginal for y over x
+                    px_py = px[:, None] * py[None, :]  # Broadcast to multiply marginals
+                    # Now we can do the calculation using the pxy, px_py 2D arrays
+                    nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
+                    result += np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
+            else:
+                hgram, x_edges, y_edges = np.histogram2d(landcape_sample[:, :].ravel(),self.ref_image[:, :].ravel(), bins=20)
                 pxy = hgram / float(np.sum(hgram))
-                px = np.sum(pxy, axis=1)  # marginal for x over y
-                py = np.sum(pxy, axis=0)  # marginal for y over x
-                px_py = px[:, None] * py[None, :]  # Broadcast to multiply marginals
-                # Now we can do the calculation using the pxy, px_py 2D arrays
-                nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
-                result += np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
+                px = np.sum(pxy, axis=1)
+                py = np.sum(pxy, axis=0)
+                px_py = px[:, None] * py[None, :]
+                nzs = pxy > 0
+                result = np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
+
             ## Updating gbest, pbest if needed
             if result > self.gbest_value:
                 self.gbest_value = result
@@ -193,6 +209,14 @@ class PSO:
         if not was_update:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
             self.iteration_since_explosion = self.iteration_since_explosion + 1
+
+    def evaluate(self):
+        if self.choosen_function == 1:
+            self.evaluate_fitness1()
+        elif self.choosen_function == 2:
+            self.evaluate_fitness2()
+        else:
+            pass
 
     def explode(self) -> None:
         """
@@ -245,6 +269,56 @@ class Particle:
         self.pbest_position = pbest_position
         self.pbest_value = pbest_value
 
+    def click_event(event, x, y, flags, params):
+        # checking for left mouse clicks
+        if event == cv2.EVENT_LBUTTONDOWN:
+
+            reference_image_path = "patt"
+            landscape_image_path = "druzyna_AGH_01.jpg"
+            ref_image = cv2.imread(reference_image_path)
+            land_image = cv2.imread(landscape_image_path)
+            print(f"check for x = {x} , y = {y}")
+            Pinv = 0
+            nbits = 8
+            n, m = ref_image.shape[:2]
+            error_calc = 0
+            for i in range(0, n):
+                for j in range(0, m):
+                    # ddX = j - m/2
+                    # ddY = i - n/2
+                    # I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
+                    # J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
+                    I = int(y + i - n / 2)
+                    J = int(x + j - m / 2)
+                    ## Calculating error calc and checking if indexes works well
+                    try:
+                        error_calc += abs(ref_image[i, j] - land_image[I, J])
+                    except IndexError:
+                        error_calc += 255
+
+            err_max = (2 ** nbits) * ((m * n) - Pinv)
+
+            ## Calculating error and checking if err_max is not 0
+            try:
+                error = (err_max - error_calc) / err_max
+            except ZeroDivisionError:
+                error = 69
+                print(f"ZeroDivisionError")
+            print(f"ERROR = {error}")
+
+    def check_function():
+        ################Parametry do zmiany####################
+        reference_image_path = "shapes_pat.png"
+        landscape_image_path = "shapes.jpg"
+        #######################################################
+
+        landImage = cv2.imread(landscape_image_path, 0)
+        cv2.imshow('image', landImage)
+
+        cv2.setMouseCallback('image', click_event)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
 
 def main():
     ################Parametry do zmiany####################
@@ -257,15 +331,25 @@ def main():
     max_iter_before_termination = 300
     reference_image_path = "Wally_ref.jpg"
     landscape_image_path = "Wally_landscape.jpeg"
+    RGB = True
+    choosen_function = 2
+    # 1 - Count difference measure
+    # 2 - Mutual information measure
     #######################################################
 
     refImage = cv2.imread(reference_image_path)
     landImage = cv2.imread(landscape_image_path)
+
     print(f"refImage size is {refImage.shape}")
     print(f"LandImage size is {landImage.shape}")
 
+
     pso = PSO(refImage, landImage,W, C1, C2, nb_of_particles,
-                 max_iter_before_explosion, max_iter_without_gbest_update, max_iter_before_termination)
+                 max_iter_before_explosion, max_iter_without_gbest_update, max_iter_before_termination, RGB= RGB, choosen_function= choosen_function)
+
+    if not RGB:
+        refImage = cv2.cvtColor(refImage, cv2.COLOR_BGR2GRAY)
+        landImage = cv2.cvtColor(landImage, cv2.COLOR_BGR2GRAY)
 
     start_time = time.time()
     count = 0
@@ -273,9 +357,7 @@ def main():
     while not pso.should_terminate():
         for particle in pso.particles:
             cv2.circle(show_me, (int(particle.position[0]), int(particle.position[1])), radius=0, color=(0, 0, 0), thickness=6)
-        # cv2.imshow("Image", show_me)
-        # cv2.waitKey()
-        pso.evaluate_fitness2()
+        pso.evaluate()
         pso.update_particles_velocity()
         pso.update_particles_position()
         count = count + 1
@@ -292,12 +374,6 @@ def main():
     thickness = 3
 
     cv2.rectangle(show_me, start_point, end_point, color, thickness)
-    #
-    # n,m = refImage.shape
-    # cv2.rectangle(show_me, (int(pso.gbest_position[0]) - 5, int(pso.gbest_position[1]) - 5),
-    #               (int(pso.gbest_position[0] + refImage.shape[1]) + 5,
-    #                int(pso.gbest_position[1] +  refImage.shape[0]) + 5),
-    #               (0, 0, 0), 3)
 
     cv2.imshow('landscape', show_me)
     cv2.imshow("refImage", refImage)
@@ -307,60 +383,6 @@ def main():
     print(f"gbest position : {pso.gbest_position}")
 
     cv2.waitKey()
-
-
-
-def click_event(event, x, y, flags, params):
-    # checking for left mouse clicks
-    if event == cv2.EVENT_LBUTTONDOWN:
-
-        reference_image_path = "patt"
-        landscape_image_path = "druzyna_AGH_01.jpg"
-        ref_image = cv2.imread(reference_image_path)
-        land_image = cv2.imread(landscape_image_path)
-        print(f"check for x = {x} , y = {y}")
-        Pinv = 0
-        nbits = 8
-        n, m = ref_image.shape[:2]
-        error_calc = 0
-        for i in range(0, n):
-            for j in range(0, m):
-                # ddX = j - m/2
-                # ddY = i - n/2
-                # I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
-                # J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
-                I = int(y + i - n / 2)
-                J = int(x + j - m / 2)
-                ## Calculating error calc and checking if indexes works well
-                try:
-                    error_calc += abs(ref_image[i, j] - land_image[I, J])
-                except IndexError:
-                    error_calc += 255
-
-
-        err_max = (2 ** nbits) * ((m * n) - Pinv)
-
-        ## Calculating error and checking if err_max is not 0
-        try:
-            error = (err_max - error_calc) / err_max
-        except ZeroDivisionError:
-            error = 69
-            print(f"ZeroDivisionError")
-        print(f"ERROR = {error}")
-
-
-def check_function():
-    ################Parametry do zmiany####################
-    reference_image_path = "shapes_pat.png"
-    landscape_image_path = "shapes.jpg"
-    #######################################################
-
-    landImage = cv2.imread(landscape_image_path, 0)
-    cv2.imshow('image', landImage)
-
-    cv2.setMouseCallback('image', click_event)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
