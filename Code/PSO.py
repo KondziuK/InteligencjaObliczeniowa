@@ -20,7 +20,7 @@ class PSO:
             self.gbest_value = 1000000000000
         else:
             self.gbest_value = 0
-        self.gbest_position = [0, 0]
+        self.gbest_position = [0, 0, 1, 0]
         self.W = W
         self.c1 = C1
         self.c2 = C2
@@ -28,10 +28,14 @@ class PSO:
         self.ref_image = ref_image if RGB else cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
         self.landscape = landscape if RGB else cv2.cvtColor(landscape, cv2.COLOR_BGR2GRAY)
         self.nb_of_channels = ref_image.shape[-1]
-        self.max_y = int(landscape.shape[0] - (ref_image.shape[0]/2) - 1)
-        self.max_x = int(landscape.shape[1] - (ref_image.shape[1]/2) - 1)
-        self.min_x = int((ref_image.shape[1]/2)+1)
-        self.min_y = int((ref_image.shape[0]/2)+1)
+        self.max_y = int(landscape.shape[0] - max(ref_image.shape))
+        self.max_x = int(landscape.shape[1] - max(ref_image.shape))
+        self.min_x = int(max(ref_image.shape))
+        self.min_y = int(max(ref_image.shape))
+        self.min_s = 0.75
+        self.max_s = 1.5
+        self.min_r = -math.pi/2
+        self.max_r = math.pi/2
         self.particles = self.init_with_random_values()
         self.iteration = 0
         self.iteration_since_gbest_update = 0
@@ -60,7 +64,9 @@ class PSO:
         for i in range(0, self.nb_of_particles):
             x = random.randint(self.min_x, self.max_x)
             y = random.randint(self.min_y, self.max_y)
-            particles.append(Particle(x, y))
+            s = random.uniform(self.min_s, self.max_s)
+            r = random.uniform(self.min_r, self.max_r)
+            particles.append(Particle(x, y, s, r))
         return particles
 
     def update_particles_velocity(self) -> None:
@@ -72,7 +78,7 @@ class PSO:
 
     def update_particles_position(self) -> None:
         for particle in self.particles:
-            position = np.zeros(2)
+            position = np.zeros(4)
             if self.min_x < int(particle.position[0] + particle.velocity[0]) < self.max_x:
                 position[0] = int(particle.position[0] + particle.velocity[0])
             else:
@@ -81,7 +87,14 @@ class PSO:
                 position[1] = int(particle.position[1] + particle.velocity[1])
             else:
                 position[1] = random.randint(self.min_y, self.max_y)
-
+            if self.min_s < int(particle.position[2] + particle.velocity[2]) < self.max_s:
+                position[2] = int(particle.position[2] + particle.velocity[2])
+            else:
+                position[2] = random.uniform(self.min_s, self.max_s)
+            if self.min_r < int(particle.position[3] + particle.velocity[3]) < self.max_r:
+                position[3] = int(particle.position[3] + particle.velocity[3])
+            else:
+                position[3] = random.uniform(self.min_r, self.max_r)
             particle.update_position(position)
 
     def evaluate_fitness1(self) -> None:
@@ -94,7 +107,7 @@ class PSO:
         was_update = False
 
         for particle in self.particles:
-            x, y = particle.position
+            x, y, s, r = particle.position
             Pinv = 0
             nbits = 8
             n, m = self.ref_image.shape[:2]
@@ -111,13 +124,12 @@ class PSO:
 
             for i in range(0,n):
                 for j in range(0,m):
-                    s =1
-                    # ddX = j - m/2
-                    # ddY = i - n/2
-                    # I = int(y + s * (ddX * math.sin(-tau * (math.pi / 180)) + ddY * math.cos(tau * (math.pi / 180))))
-                    # J = int(x + s * (ddX * math.cos(-tau * (math.pi / 180)) + ddY * math.sin(tau * (math.pi / 180))))
-                    I = int(y + i - ddN)
-                    J = int(x + j - ddM)
+                    ddX = j - ddM
+                    ddY = i - ddN
+                    I = int(y + s * (ddX * math.sin(-r) + ddY * math.cos(r)))
+                    J = int(x + s * (ddX * math.cos(-r) + ddY * math.sin(r)))
+                    # I = int(y + i - ddN)
+                    # J = int(x + j - ddM)
                     ## Calculating error calc and checking if indexes works well
                     try:
                         if self.RGB:
@@ -126,9 +138,9 @@ class PSO:
                         else:
                             error_calc = abs(self.ref_image[i, j] - self.landscape[I, J])
                     except IndexError:
-                        print(f"IndexError in iteration{self.iteration} for position {x}, {y}"
-                               f"for i = {j}, j = {i},"
-                               f"for I = {J}, J = {I}")
+                        print(f"IndexError in iteration{self.iteration} for position {x}, {y}, {s}, {r}"
+                               f"for i = {i}, j = {j},"
+                               f"for I = {I}, J = {J}")
                         sys.exit(7)
 
             err_max = (2 ** nbits) * ((m * n) - Pinv)
@@ -146,13 +158,13 @@ class PSO:
             ## Updating gbest, pbest if needed
             if error > self.gbest_value:
                 self.gbest_value = error
-                self.gbest_position = [x, y]
+                self.gbest_position = [x, y, s, r]
                 self.iteration_since_gbest_update = 0 ## Zeroing iterations since gbest update
                 self.iteration_since_explosion = 0
                 was_update = True
 
             if error > particle.pbest_value:
-                particle.update_pbest(error, [x, y])
+                particle.update_pbest(error, [x, y, s, r])
 
         if not was_update:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
@@ -164,15 +176,18 @@ class PSO:
         self.iteration += 1
         was_update = False
         for particle in self.particles:
-            x, y = particle.position
+            x, y, s, r = particle.position
             n, m = self.ref_image.shape[:2]
             landcape_sample = copy.deepcopy(self.ref_image)
 
             for i in range(0, n):
                 for j in range(0, m):
-
-                    I = int(y + i - n/2)
-                    J = int(x + j - m/2)
+                    ddX = j - m/2
+                    ddY = i - n/2
+                    I = int(y + s * (ddX * math.sin(-r) + ddY * math.cos(r)))
+                    J = int(x + s * (ddX * math.cos(-r) + ddY * math.sin(r)))
+                    # I = int(y + i - n/2)
+                    # J = int(x + j - m/2)
                     try:
                         if self.RGB:
                             landcape_sample[i, j, :] = self.landscape[I, J, :]
@@ -204,13 +219,13 @@ class PSO:
             ## Updating gbest, pbest if needed
             if result > self.gbest_value:
                 self.gbest_value = result
-                self.gbest_position = [x, y]
+                self.gbest_position = [x, y, s, r]
                 self.iteration_since_gbest_update = 0  ## Zeroing iterations since gbest update
                 self.iteration_since_explosion = 0
                 was_update = True
 
             if result > particle.pbest_value:
-                particle.update_pbest(result, [x, y])
+                particle.update_pbest(result, [x, y, s, r])
 
         if not was_update:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
@@ -224,15 +239,19 @@ class PSO:
         self.iteration += 1
         was_update = False
         for particle in self.particles:
-            x, y = particle.position
+            x, y, s, r = particle.position
             n, m = self.ref_image.shape[:2]
             landcape_sample = copy.deepcopy(self.ref_image)
 
             for i in range(0, n):
                 for j in range(0, m):
 
-                    I = int(y + i - n/2)
-                    J = int(x + j - m/2)
+                    ddX = j - m/2
+                    ddY = i - n/2
+                    I = int(y + s * (ddX * math.sin(-r) + ddY * math.cos(r)))
+                    J = int(x + s * (ddX * math.cos(-r) + ddY * math.sin(r)))
+                    # I = int(y + i - n/2)
+                    # J = int(x + j - m/2)
                     try:
                         if self.RGB:
                             landcape_sample[i, j, :] = self.landscape[I, J, :]
@@ -255,13 +274,13 @@ class PSO:
             ## Updating gbest, pbest if needed
             if result < self.gbest_value:
                 self.gbest_value = result
-                self.gbest_position = [x, y]
+                self.gbest_position = [x, y, s, r]
                 self.iteration_since_gbest_update = 0  ## Zeroing iterations since gbest update
                 self.iteration_since_explosion = 0
                 was_update = True
 
             if result < particle.pbest_value:
-                particle.update_pbest(result, [x, y])
+                particle.update_pbest(result, [x, y, s, r])
 
         if not was_update:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
@@ -284,11 +303,13 @@ class PSO:
         :return:
         """
         for particle in self.particles:
-            position = np.zeros(2)
+            position = np.zeros(4)
             position[0] = random.randint(self.min_x, self.max_x)
             position[1] = random.randint(self.min_y, self.max_y)
+            position[2] = random.uniform(self.min_s, self.max_s)
+            position[3] = random.uniform(self.min_r, self.max_r)
             particle.update_position(position)
-            particle.update_pbest(0, [0, 0])
+            particle.update_pbest(0, [0, 0, 1, 0])
         print("EXPLODE")
 
 
@@ -310,11 +331,11 @@ class PSO:
 
 class Particle:
 
-    def __init__(self, x: int, y: int):
+    def __init__(self, x: int, y: int, s: float, r: float):
 
         tau = 0
-        self.position = np.array([x, y])
-        self.velocity = np.array([random.uniform(-0.1, 0.1) for i in range(0, 2)])
+        self.position = np.array([x, y, s, r])
+        self.velocity = np.array([random.uniform(-0.1, 0.1) for i in range(0, 4)])
         self.pbest_position = copy.deepcopy(self.position)
         self.pbest_value = 0
 
@@ -392,13 +413,13 @@ def main():
     C1 = 2
     C2 = 2
     nb_of_particles = 20
-    max_iter_before_explosion = 9
+    max_iter_before_explosion = 19
     max_iter_without_gbest_update = 100
-    max_iter_before_termination = 300
-    reference_image_path = "Wally_ref.jpg"
-    landscape_image_path = "Wally_landscape.jpeg"
+    max_iter_before_termination = 500
+    reference_image_path = "shapes_pat_flip.png"
+    landscape_image_path = "shapes.jpg"
     RGB = True
-    choosen_function = 3
+    choosen_function = 2
     # 1 - Count difference measure
     # 2 - Mutual information measure
     # 3 - Hausdorff distance
@@ -436,7 +457,7 @@ def main():
     end_time = time.time()
 
     start_point = (int(pso.gbest_position[0] - (refImage.shape[1])/2), int(pso.gbest_position[1] - (refImage.shape[0])/2))
-    end_point = (int(pso.gbest_position[0] + (refImage.shape[1])/2), int(pso.gbest_position[1] + (refImage.shape[0])/2))
+    end_point = (int((pso.gbest_position[0] + (refImage.shape[1])/2)), int((pso.gbest_position[1] + (refImage.shape[0])/2)))
     color = (68, 104, 124)
     thickness = 3
 
