@@ -413,13 +413,13 @@ def main():
     C1 = 2
     C2 = 2
     nb_of_particles = 20
-    max_iter_before_explosion = 19
-    max_iter_without_gbest_update = 100
-    max_iter_before_termination = 500
-    reference_image_path = "shapes_pat_flip.png"
-    landscape_image_path = "shapes.jpg"
+    max_iter_before_explosion = 49
+    max_iter_without_gbest_update = 300
+    max_iter_before_termination = 800
+    reference_image_path = "pattern_flip.jpg"
+    landscape_image_path = "druzyna_AGH_01.jpg"
     RGB = True
-    choosen_function = 2
+    choosen_function = 3
     # 1 - Count difference measure
     # 2 - Mutual information measure
     # 3 - Hausdorff distance
