@@ -5,6 +5,7 @@ import copy
 import math
 import sys
 import time
+import matplotlib.pyplot as plt
 #from hausdorff import hausdorff_distance
 from scipy.spatial.distance import directed_hausdorff
 
@@ -46,6 +47,7 @@ class PSO:
 
         self.choosen_function = choosen_function
         self.RGB = RGB
+        self.gbests = []
 
     def __call__(self) -> None:
         """
@@ -170,6 +172,8 @@ class PSO:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
             self.iteration_since_explosion = self.iteration_since_explosion + 1
 
+        self.gbests.append(self.gbest_value)
+
     def evaluate_fitness2(self) -> None:
 
         ## Updating nb of iterations
@@ -231,7 +235,7 @@ class PSO:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
             self.iteration_since_explosion = self.iteration_since_explosion + 1
 
-
+        self.gbests.append(self.gbest_value)
 
     def evaluate_fitness_hausdorf(self) -> None:
 
@@ -286,7 +290,7 @@ class PSO:
             self.iteration_since_gbest_update = self.iteration_since_gbest_update + 1
             self.iteration_since_explosion = self.iteration_since_explosion + 1
 
-
+        self.gbests.append(self.gbest_value)
     def evaluate(self):
         if self.choosen_function == 1:
             self.evaluate_fitness1()
@@ -416,8 +420,8 @@ def main():
     max_iter_before_explosion = 49
     max_iter_without_gbest_update = 300
     max_iter_before_termination = 800
-    reference_image_path = "pattern_flip.jpg"
-    landscape_image_path = "druzyna_AGH_01.jpg"
+    reference_image_path = "avengers_pat.jpg"
+    landscape_image_path = "avengers_2.jpg"
     RGB = True
     choosen_function = 3
     # 1 - Count difference measure
@@ -469,6 +473,15 @@ def main():
     print(f"elapsed time: {end_time - start_time} s")
     print(f"gbest value : {pso.gbest_value}")
     print(f"gbest position : {pso.gbest_position}")
+    print(f"Iterations until success {pso.iteration - pso.max_iter_without_gbest_update}")
+
+
+    plt.figure()
+    plt.title("Global best values")
+    plt.plot(range(0, pso.iteration), pso.gbests)
+    plt.xlabel("Iterations")
+    plt.ylabel("Gbest value")
+    plt.show()
 
     cv2.waitKey()
 
