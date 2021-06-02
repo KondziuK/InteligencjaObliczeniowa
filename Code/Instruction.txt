@@ -1,0 +1,10 @@
+To run code open PSO.py and change parameters in the beginning of main function, then just run 'python3 PSO.py'
+Needed libraries:
+cv2
+random
+copy
+math
+sys
+time
+matplotlib.pyplot
+scipy.spatial.distance

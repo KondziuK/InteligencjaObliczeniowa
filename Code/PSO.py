@@ -6,16 +6,15 @@ import math
 import sys
 import time
 import matplotlib.pyplot as plt
-#from hausdorff import hausdorff_distance
 from scipy.spatial.distance import directed_hausdorff
-
 
 class PSO:
 
     def __init__(self, ref_image: np.array,landscape: np.array,
                  W: float, C1 :float, C2: float,
                  nb_of_particles: int,
-                 max_iter_before_explosion:int, max_iter_without_gbest_update: int,max_iter_before_termination: int, RGB: bool = False,choosen_function: int = 1 ):
+                 max_iter_before_explosion:int, max_iter_without_gbest_update: int,
+                 max_iter_before_termination: int, RGB: bool = False,choosen_function: int = 1 ):
 
         if choosen_function == 3:
             self.gbest_value = 1000000000000
@@ -49,14 +48,6 @@ class PSO:
         self.RGB = RGB
         self.gbests = []
 
-    def __call__(self) -> None:
-        """
-        Things that will be returned after calling on object ()
-        :return:
-        """
-        pass
-
-
     def init_with_random_values(self) -> list:
         """
         Create particles with random values
@@ -75,7 +66,8 @@ class PSO:
         r1 = random.uniform(0, 1)
         r2 = random.uniform(0, 1)
         for particle in self.particles:
-            velocity = (self.W * particle.velocity) + (self.c1 * r1 * (particle.pbest_position - particle.position)) + (self.c2 * r2 * (self.gbest_position - particle.position))
+            velocity = (self.W * particle.velocity) + (self.c1 * r1 * (particle.pbest_position - particle.position)) + \
+                       (self.c2 * r2 * (self.gbest_position - particle.position))
             particle.update_velocity(velocity)
 
     def update_particles_position(self) -> None:
@@ -130,9 +122,6 @@ class PSO:
                     ddY = i - ddN
                     I = int(y + s * (ddX * math.sin(-r) + ddY * math.cos(r)))
                     J = int(x + s * (ddX * math.cos(-r) + ddY * math.sin(r)))
-                    # I = int(y + i - ddN)
-                    # J = int(x + j - ddM)
-                    ## Calculating error calc and checking if indexes works well
                     try:
                         if self.RGB:
                             for k in range(0,3):
@@ -190,8 +179,6 @@ class PSO:
                     ddY = i - n/2
                     I = int(y + s * (ddX * math.sin(-r) + ddY * math.cos(r)))
                     J = int(x + s * (ddX * math.cos(-r) + ddY * math.sin(r)))
-                    # I = int(y + i - n/2)
-                    # J = int(x + j - m/2)
                     try:
                         if self.RGB:
                             landcape_sample[i, j, :] = self.landscape[I, J, :]
@@ -203,7 +190,8 @@ class PSO:
 
             if self.RGB:
                 for k in range(0, 3):
-                    hgram, x_edges, y_edges = np.histogram2d( landcape_sample[:,:,k].ravel(),self.ref_image[:,:,k].ravel(),bins=20)
+                    hgram, x_edges, y_edges = np.histogram2d( landcape_sample[:,:,k].ravel(),
+                                                              self.ref_image[:,:,k].ravel(),bins=20)
                     pxy = hgram / float(np.sum(hgram))
                     px = np.sum(pxy, axis=1)  # marginal for x over y
                     py = np.sum(pxy, axis=0)  # marginal for y over x
@@ -212,7 +200,8 @@ class PSO:
                     nzs = pxy > 0  # Only non-zero pxy values contribute to the sum
                     result += np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
             else:
-                hgram, x_edges, y_edges = np.histogram2d(landcape_sample[:, :].ravel(),self.ref_image[:, :].ravel(), bins=20)
+                hgram, x_edges, y_edges = np.histogram2d(landcape_sample[:, :].ravel(),
+                                                         self.ref_image[:, :].ravel(), bins=20)
                 pxy = hgram / float(np.sum(hgram))
                 px = np.sum(pxy, axis=1)
                 py = np.sum(pxy, axis=0)
@@ -254,8 +243,6 @@ class PSO:
                     ddY = i - n/2
                     I = int(y + s * (ddX * math.sin(-r) + ddY * math.cos(r)))
                     J = int(x + s * (ddX * math.cos(-r) + ddY * math.sin(r)))
-                    # I = int(y + i - n/2)
-                    # J = int(x + j - m/2)
                     try:
                         if self.RGB:
                             landcape_sample[i, j, :] = self.landscape[I, J, :]
@@ -267,13 +254,11 @@ class PSO:
 
             if self.RGB:
                 for k in range(0, 3):
-
-                    # result += hausdorff_distance(landcape_sample[:, :, k], self.ref_image[:, :, k])
-
-                    result += max(directed_hausdorff(landcape_sample[:, :, k], self.ref_image[:, :, k])[0], directed_hausdorff(self.ref_image[:, :, k], landcape_sample[:, :, k])[0])
+                    result += max(directed_hausdorff(landcape_sample[:, :, k], self.ref_image[:, :, k])[0],
+                                  directed_hausdorff(self.ref_image[:, :, k], landcape_sample[:, :, k])[0])
             else:
-                result =max(directed_hausdorff(landcape_sample[:, :, k], self.ref_image[:, :, k])[0], directed_hausdorff(self.ref_image[:, :, k], landcape_sample[:, :, k])[0])
-                # result = hausdorff_distance(landcape_sample, self.ref_image)
+                result =max(directed_hausdorff(landcape_sample[:, :, k], self.ref_image[:, :, k])[0],
+                            directed_hausdorff(self.ref_image[:, :, k], landcape_sample[:, :, k])[0])
 
             ## Updating gbest, pbest if needed
             if result < self.gbest_value:
@@ -303,7 +288,7 @@ class PSO:
 
     def explode(self) -> None:
         """
-        Moving particles to random position # wszystkie czy wybrane?
+        Moving particles to random position
         :return:
         """
         for particle in self.particles:
@@ -315,7 +300,6 @@ class PSO:
             particle.update_position(position)
             particle.update_pbest(0, [0, 0, 1, 0])
         print("EXPLODE")
-
 
     def should_terminate(self) -> bool:
         """
@@ -354,13 +338,9 @@ class Particle:
         self.pbest_position = pbest_position
         self.pbest_value = pbest_value
 
-
-
-
 def click_event(event, x, y, flags, params):
     # checking for left mouse clicks
     if event == cv2.EVENT_LBUTTONDOWN:
-
         reference_image_path = "shapes_pat.png"
         landscape_image_path = "shapes.jpg"
         ref_image = cv2.imread(reference_image_path,0)
@@ -372,7 +352,6 @@ def click_event(event, x, y, flags, params):
         RGB = False
         for i in range(0, n):
             for j in range(0, m):
-
                 I = int(y + i - n / 2)
                 J = int(x + j - m / 2)
                 try:
@@ -383,32 +362,15 @@ def click_event(event, x, y, flags, params):
                 except IndexError:
                     sys.exit(7)
         result = 0
-
         if RGB:
             for k in range(0, 3):
-                # result += hausdorff_distance(landcape_sample[:, :, k], self.ref_image[:, :, k])
-
                 result += max(directed_hausdorff(landcape_sample[:, :, k], ref_image[:, :, k])[0],
                               directed_hausdorff(ref_image[:, :, k], landcape_sample[:, :, k])[0])
         else:
             result = max(directed_hausdorff(landcape_sample, ref_image)[0],
                          directed_hausdorff(ref_image, landcape_sample)[0])
-            # result = hausdorff_distance(landcape_sample, self.ref_image)
 
         print(f"RESULT = {result}")
-
-def check_function():
-    ################Parametry do zmiany####################
-    reference_image_path = "Wally_ref.jpg"
-    landscape_image_path = "Wally_landscape.jpeg"
-    #######################################################
-
-    landImage = cv2.imread(landscape_image_path, 0)
-    cv2.imshow('image', landImage)
-
-    cv2.setMouseCallback('image', click_event)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
 
 def main():
@@ -420,8 +382,8 @@ def main():
     max_iter_before_explosion = 49
     max_iter_without_gbest_update = 300
     max_iter_before_termination = 800
-    reference_image_path = "avengers_pat.jpg"
-    landscape_image_path = "avengers_2.jpg"
+    reference_image_path = "reference_images\\avengers_pat.jpg"
+    landscape_image_path = "landscape_images\\avengers_2.jpg"
     RGB = True
     choosen_function = 3
     # 1 - Count difference measure
@@ -435,9 +397,11 @@ def main():
     print(f"refImage size is {refImage.shape}")
     print(f"LandImage size is {landImage.shape}")
 
-
     pso = PSO(refImage, landImage,W, C1, C2, nb_of_particles,
-                 max_iter_before_explosion, max_iter_without_gbest_update, max_iter_before_termination, RGB= RGB, choosen_function= choosen_function)
+              max_iter_before_explosion,
+              max_iter_without_gbest_update,
+              max_iter_before_termination,
+              RGB=RGB, choosen_function=choosen_function)
 
     if not RGB:
         refImage = cv2.cvtColor(refImage, cv2.COLOR_BGR2GRAY)
@@ -448,7 +412,8 @@ def main():
     show_me = landImage.copy()
     while not pso.should_terminate():
         for particle in pso.particles:
-            cv2.circle(show_me, (int(particle.position[0]), int(particle.position[1])), radius=0, color=(0, 0, 0), thickness=6)
+            cv2.circle(show_me, (int(particle.position[0]), int(particle.position[1])),
+                       radius=0, color=(0, 0, 0), thickness=6)
         pso.evaluate()
         pso.update_particles_velocity()
         pso.update_particles_position()
@@ -456,12 +421,15 @@ def main():
         if pso.iteration_since_explosion > pso.max_iter_before_explosion:
             pso.iteration_since_explosion = 0
             pso.explode()
-        print("Iteration nr " + str(count) + ", since gbest_update: " + str(pso.iteration_since_gbest_update) + ", since explode: " + str(pso.iteration_since_explosion))
+        print("Iteration nr " + str(count) + ", since gbest_update: " + str(pso.iteration_since_gbest_update) +
+              ", since explode: " + str(pso.iteration_since_explosion))
 
     end_time = time.time()
 
-    start_point = (int(pso.gbest_position[0] - (refImage.shape[1])/2), int(pso.gbest_position[1] - (refImage.shape[0])/2))
-    end_point = (int((pso.gbest_position[0] + (refImage.shape[1])/2)), int((pso.gbest_position[1] + (refImage.shape[0])/2)))
+    start_point = (int(pso.gbest_position[0] - (refImage.shape[1])/2), int(pso.gbest_position[1] -
+                                                                           (refImage.shape[0])/2))
+    end_point = (int((pso.gbest_position[0] + (refImage.shape[1])/2)), int((pso.gbest_position[1] +
+                                                                            (refImage.shape[0])/2)))
     color = (68, 104, 124)
     thickness = 3
 
@@ -475,7 +443,6 @@ def main():
     print(f"gbest position : {pso.gbest_position}")
     print(f"Iterations until success {pso.iteration - pso.max_iter_without_gbest_update}")
 
-
     plt.figure()
     plt.title("Global best values")
     plt.plot(range(0, pso.iteration), pso.gbests)
@@ -487,5 +454,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    #check_function()
 
